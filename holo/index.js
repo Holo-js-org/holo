@@ -1,4 +1,3 @@
-// holo/index.js
 export class Holo {
   constructor() {
     this.title = "Holo App";
@@ -6,6 +5,69 @@ export class Holo {
     this.readyCallbacks = [];
     this.rootElement = null;
     this.componentRegistry = new Map();
+    this._state = new Proxy({}, {
+      set: (target, prop, value) => {
+        const oldValue = target[prop];
+        target[prop] = value;
+        if (oldValue !== value) {
+          this._notifyStateChange(prop, value, oldValue);
+        }
+        return true;
+      }
+    });
+    this._stateSubscribers = new Map();
+    this.saves = new StorageManager();
+  }
+
+  get state() {
+    return this._state;
+  }
+
+  _notifyStateChange(prop, newValue, oldValue) {
+    const subscribers = this._stateSubscribers.get(prop) || [];
+    subscribers.forEach(callback => callback(newValue, oldValue));
+    
+    window.dispatchEvent(new CustomEvent('holo:state-change', {
+      detail: { prop, newValue, oldValue }
+    }));
+    
+    this._updateStateBindings(prop);
+  }
+
+  _updateStateBindings(changedProp) {
+    const bindingPattern = new RegExp(`{${changedProp}}`, 'g');
+    
+    document.querySelectorAll('[data-holo-binding]').forEach(element => {
+      const bindings = element.getAttribute('data-holo-binding').split(',');
+      
+      if (bindings.includes(changedProp)) {
+        const template = element.getAttribute('data-holo-template');
+        if (template) {
+          element.innerHTML = this._processTemplate(template);
+        }
+      }
+    });
+  }
+
+  _processTemplate(template) {
+    return template.replace(/{(\w+)}/g, (match, stateName) => {
+      return this.state[stateName] !== undefined ? this.state[stateName] : match;
+    });
+  }
+
+  subscribeToState(prop, callback) {
+    if (!this._stateSubscribers.has(prop)) {
+      this._stateSubscribers.set(prop, []);
+    }
+    this._stateSubscribers.get(prop).push(callback);
+    
+    return () => {
+      const subscribers = this._stateSubscribers.get(prop) || [];
+      const index = subscribers.indexOf(callback);
+      if (index !== -1) {
+        subscribers.splice(index, 1);
+      }
+    };
   }
 
   static init() {
@@ -15,6 +77,24 @@ export class Holo {
       document.title = instance.title;
       instance.readyCallbacks.forEach(callback => callback());
     });
+	
+		console.log(`                   
+               :::::                                                                                                                          
+             :::::::::                                                                                                                        
+=-----      ::::- ::::                                                                          
+=-----      -:::- :::::                                                 
+--=+        ----- :::::::                                            
+  %%%%   -------     :::::                                       
+ %%%#+-------==        ----                           
+  #*+=------=====+    +++++                                         
+ =========== =====  ==++++                                       
+ =======     ===== ====                                         
+ =====+      +==== ====                                         
+ +=====      ==========                                       
+ =====      ==========                                                      
+               =======                                       
+                +=                                                                                                                                                                                                                                                           
+`);
     
     return instance;
   }
@@ -25,6 +105,10 @@ export class Holo {
       document.title = title;
     }
     return this;
+  }
+  
+  exposeAsApp() {
+	  window.app = this;
   }
 
   registerComponent(component) {
@@ -37,6 +121,8 @@ export class Holo {
     this.componentRegistry.set(name, component);
     
     if (customElements.get(name) === undefined) {
+      const holoInstance = this;
+      
       customElements.define(name, class extends HTMLElement {
         connectedCallback() {
           const attributes = Array.from(this.attributes)
@@ -44,7 +130,28 @@ export class Holo {
             .join(' ');
           
           const inner = this.innerHTML;
-          const rendered = component.render(attributes, inner);
+          let rendered = component.render(attributes, inner);
+          
+          rendered = holoInstance._processTemplate(rendered);
+          
+          const stateBindings = [...rendered.matchAll(/{(\w+)}/g)].map(match => match[1]);
+          
+          if (stateBindings.length > 0) {
+            const tempContainer = document.createElement('div');
+            tempContainer.innerHTML = rendered;
+            
+            for (const element of tempContainer.querySelectorAll('*')) {
+              const innerHTML = element.innerHTML;
+              const bindings = [...innerHTML.matchAll(/{(\w+)}/g)].map(match => match[1]);
+              
+              if (bindings.length > 0) {
+                element.setAttribute('data-holo-binding', bindings.join(','));
+                element.setAttribute('data-holo-template', innerHTML);
+              }
+            }
+            
+            rendered = tempContainer.innerHTML;
+          }
           
           this.outerHTML = rendered;
         }
@@ -70,9 +177,28 @@ export class Holo {
       throw new Error(`Target element "${targetSelector}" not found`);
     }
     
-    target.innerHTML = template;
+    const processedTemplate = this._processTemplate(template);
+    
+    target.innerHTML = processedTemplate;
     this.processComponents(target);
+    this._setupStateBindings(target);
+    
     return this;
+  }
+
+  _setupStateBindings(root) {
+    const bindingElements = root.querySelectorAll('*');
+    
+    bindingElements.forEach(element => {
+      const innerHTML = element.innerHTML;
+      const bindings = [...innerHTML.matchAll(/{(\w+)}/g)].map(match => match[1]);
+      
+      if (bindings.length > 0) {
+        element.setAttribute('data-holo-binding', bindings.join(','));
+        element.setAttribute('data-holo-template', innerHTML);
+        element.innerHTML = this._processTemplate(innerHTML);
+      }
+    });
   }
 
   processComponents(root) {
@@ -92,6 +218,38 @@ export class Holo {
   }
 }
 
+class StorageManager {
+  constructor(prefix = 'holo_') {
+    this.prefix = prefix;
+  }
+  
+  set(key, value) {
+    localStorage.setItem(this.prefix + key, JSON.stringify(value));
+    return this;
+  }
+  
+  get(key) {
+    const value = localStorage.getItem(this.prefix + key);
+    try {
+      return value ? JSON.parse(value) : null;
+    } catch (e) {
+      return value;
+    }
+  }
+  
+  rm(key) {
+    localStorage.removeItem(this.prefix + key);
+    return this;
+  }
+  
+  clear() {
+    Object.keys(localStorage)
+      .filter(key => key.startsWith(this.prefix))
+      .forEach(key => localStorage.removeItem(key));
+    return this;
+  }
+}
+
 export class Router {
   constructor(options = { mode: "hash" }) {
     this.routes = new Map();
@@ -100,6 +258,12 @@ export class Router {
     this.notFoundTemplate = "<h1>404 - Page Not Found</h1>";
     this.guards = [];
     this.currentRoute = null;
+    this.holoInstance = null;
+  }
+
+  setHoloInstance(holoInstance) {
+    this.holoInstance = holoInstance;
+    return this;
   }
 
   add(path, template) {
@@ -141,6 +305,10 @@ export class Router {
       this.navigate(href);
     });
     
+    window.addEventListener('holo:state-change', () => {
+      this.updateRouteContent();
+    });
+    
     this.resolve();
     return this;
   }
@@ -152,6 +320,7 @@ export class Router {
       window.location.hash = path;
     }
     this.resolve();
+	console.log(`[Holo.js] ${path}`);
   }
 
   getPath() {
@@ -160,6 +329,23 @@ export class Router {
     } else {
       const hash = window.location.hash.substring(1);
       return hash || "/";
+    }
+  }
+
+  updateRouteContent() {
+    const path = this.currentRoute;
+    if (!path) return;
+    
+    let template = this.routes.get(path) || this.notFoundTemplate;
+    
+    if (this.holoInstance) {
+      template = this.holoInstance._processTemplate(template);
+    }
+    
+    this.container.innerHTML = template;
+    
+    if (this.holoInstance) {
+      this.holoInstance._setupStateBindings(this.container);
     }
   }
 
@@ -183,8 +369,15 @@ export class Router {
     
     this.currentRoute = path;
     
-    const template = this.routes.get(path) || this.notFoundTemplate;
+    let template = this.routes.get(path) || this.notFoundTemplate;
+    if (this.holoInstance) {
+      template = this.holoInstance._processTemplate(template);
+    }
+    
     this.container.innerHTML = template;
+    if (this.holoInstance) {
+      this.holoInstance._setupStateBindings(this.container);
+    }
     
     const event = new CustomEvent("route-changed", {
       detail: { path, template }

@@ -1,5 +1,4 @@
-// holo/components.js
-import { Holo } from './index.js';
+import { Holo } from '/holo/index.js';
 
 export const HContainer = {
   name: () => "h-container",

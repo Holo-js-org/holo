@@ -1,0 +1,16 @@
+{
+  "name": "Holo.js Test",
+  "short_name": "PWA",
+  "description": "A progressive web app example with Holo.js",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "485x514",
+      "type": "image/png"
+    }
+  ]
+}

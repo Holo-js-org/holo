@@ -19,14 +19,18 @@ A lightweight, component-based JavaScript framework for building dynamic web app
 
 ## Installation
 
-- `git clone` this repository.
-- Copy over the `holo` folder to your project.
-- Import it using ESM.
+- Install it from NPM:
+
+	```bash
+	npm i holo-js
+	```
+
+- Use it!
 
 ## Quick Start
 
 ```javascript
-import { Holo, Router } from '/holo/index.js';
+import { Holo, Router } from 'holo-js';
 
 // Initialize the application
 const app = Holo.init();

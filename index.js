@@ -110,6 +110,10 @@ export class Holo {
   exposeAsApp() {
 	  window.app = this;
   }
+  
+  getTitle() {
+	  return this.title;
+  }
 
   registerComponent(component) {
     if (!component.name || !component.render) {

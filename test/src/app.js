@@ -1,5 +1,5 @@
-import { Holo, Router } from "/holo/index.js";
-import { registerComponents, HContainer } from "/holo/components/default.js";
+import { Holo, Router } from "https://esm.run/holo-js";
+import { registerComponents, HContainer } from "https://esm.run/holo-js/holo/components/default.js"; // will be changed once version gets bumped
 
 const app = Holo.init();
 app.setTitle("Holo Example");

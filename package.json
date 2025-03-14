@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo Starting Test at :3000/test && npx http-server -c-1 -p 3000"
   },
-  "main": "holo/index.js",
+  "main": "index.js",
   "type": "module",
   "keywords": [],
   "author": "NEOAPPS",

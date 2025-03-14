@@ -95,7 +95,7 @@ export class Holo {
                =======                                       
                 +=                                                                                                                                                                                                                                                           
 `);
-    
+    window.comp = registerComponent;
     return instance;
   }
 

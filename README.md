@@ -6,6 +6,12 @@
 
 A lightweight, component-based JavaScript framework for building dynamic web applications with minimal boilerplate. Holo.js offers reactive state management, custom component registration, and flexible routing in a simple API.
 
+## Contributors
+
+<a href="https://github.com/holo-js-org/holo/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=holo-js-org/holo" />
+</a>
+
 ## Features
 
 - **Reactive State Management**: Auto-updating UI based on state changes

@@ -95,7 +95,7 @@ export class Holo {
                =======                                       
                 +=                                                                                                                                                                                                                                                           
 `);
-    window.comp = registerComponent;
+    window.comp = instance.registerComponent;
     return instance;
   }
 
@@ -388,5 +388,171 @@ export class Router {
     });
     
     window.dispatchEvent(event);
+  }
+}
+
+export class Context {
+  constructor(name) {
+    if (!name) {
+      throw new Error("Context requires a name parameter");
+    }
+    
+    this.name = name;
+    this.values = {};
+    this.subscribers = new Map();
+    this._context = new Proxy({}, {
+      set: (target, prop, value) => {
+        const oldValue = target[prop];
+        target[prop] = value;
+        if (oldValue !== value) {
+          this._notifyContextChange(prop, value, oldValue);
+        }
+        return true;
+      },
+      get: (target, prop) => {
+        return target[prop];
+      }
+    });
+  }
+
+  get context() {
+    return this._context;
+  }
+
+  _notifyContextChange(prop, newValue, oldValue) {
+    const subscribers = this.subscribers.get(prop) || [];
+    subscribers.forEach(callback => callback(newValue, oldValue));
+    
+    window.dispatchEvent(new CustomEvent('context:change', {
+      detail: { contextName: this.name, prop, newValue, oldValue }
+    }));
+    
+    this._updateContextBindings(prop);
+  }
+
+  _updateContextBindings(changedProp) {
+    const contextSelector = `[data-context-binding~="${this.name}.${changedProp}"]`;
+    document.querySelectorAll(contextSelector).forEach(element => {
+      const template = element.getAttribute('data-context-template');
+      if (template) {
+        element.innerHTML = this._processTemplate(template);
+      }
+    });
+  }
+
+  _processTemplate(template) {
+    const contextRegex = new RegExp(`{${this.name}\\.(\\w+)}`, 'g');
+    return template.replace(contextRegex, (match, key) => {
+      return this.context[key] !== undefined ? this.context[key] : match;
+    });
+  }
+
+  subscribe(prop, callback) {
+    if (!this.subscribers.has(prop)) {
+      this.subscribers.set(prop, []);
+    }
+    this.subscribers.get(prop).push(callback);
+    
+    return () => {
+      const subscribers = this.subscribers.get(prop) || [];
+      const index = subscribers.indexOf(callback);
+      if (index !== -1) {
+        subscribers.splice(index, 1);
+      }
+    };
+  }
+
+  set(key, value) {
+    this._context[key] = value;
+    return this;
+  }
+
+  get(key) {
+    return this._context[key];
+  }
+
+  update(keyOrObject, value) {
+    if (typeof keyOrObject === 'object') {
+      Object.entries(keyOrObject).forEach(([key, val]) => {
+        this._context[key] = val;
+      });
+    } else {
+      this._context[keyOrObject] = value;
+    }
+    return this;
+  }
+
+  clear(key) {
+    if (key) {
+      delete this._context[key];
+    } else {
+      Object.keys(this._context).forEach(k => delete this._context[k]);
+    }
+    return this;
+  }
+
+  setupBindings(root = document) {
+    const bindingElements = root.querySelectorAll('*');
+    const contextRegex = new RegExp(`{${this.name}\\.(\\w+)}`, 'g');
+    
+    bindingElements.forEach(element => {
+      const innerHTML = element.innerHTML;
+      const contextBindings = [];
+      let match;
+      
+      while ((match = contextRegex.exec(innerHTML)) !== null) {
+        contextBindings.push(`${this.name}.${match[1]}`);
+      }
+      
+      if (contextBindings.length > 0) {
+        const existingBindings = element.getAttribute('data-context-binding') || '';
+        const newBindings = existingBindings ? 
+          `${existingBindings} ${contextBindings.join(' ')}` : 
+          contextBindings.join(' ');
+        
+        element.setAttribute('data-context-binding', newBindings);
+        element.setAttribute('data-context-template', innerHTML);
+        element.innerHTML = this._processTemplate(innerHTML);
+      }
+    });
+    return this;
+  }
+
+  static new(name) {
+    return new Context(name);
+  }
+
+  static global(name = 'app') {
+    if (!window.contextRegistry) {
+      window.contextRegistry = new Map();
+    }
+    
+    if (!window.contextRegistry.has(name)) {
+      window.contextRegistry.set(name, new Context(name));
+    }
+    
+    return window.contextRegistry.get(name);
+  }
+  
+  static getContext(name) {
+    if (!window.contextRegistry || !window.contextRegistry.has(name)) {
+      throw new Error(`Context with name '${name}' not found`);
+    }
+    return window.contextRegistry.get(name);
+  }
+  
+  static processAllTemplates(template) {
+    if (!window.contextRegistry) return template;
+    
+    let processed = template;
+    window.contextRegistry.forEach((contextInstance, contextName) => {
+      const contextRegex = new RegExp(`{${contextName}\\.(\\w+)}`, 'g');
+      processed = processed.replace(contextRegex, (match, key) => {
+        return contextInstance.context[key] !== undefined ? 
+          contextInstance.context[key] : match;
+      });
+    });
+    
+    return processed;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "holo-js",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The new react killer.",
   "scripts": {
     "test": "echo Starting Test at :3000/test && npx http-server -c-1 -p 3000"

@@ -5,6 +5,7 @@
 </div>
 
 A lightweight, component-based JavaScript framework for building dynamic web applications with minimal boilerplate. Holo.js offers reactive state management, custom component registration, and flexible routing in a simple API.
++ Now with DevTools and Error Boundaries!
 
 ## Contributors
 
